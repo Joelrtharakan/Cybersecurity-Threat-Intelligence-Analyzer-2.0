@@ -1,0 +1,17 @@
+pandas
+pymongo
+tqdm
+tldextract
+python-dateutil
+matplotlib
+dnspython
+scikit-learn
+flask
+plotly
+geoip2
+folium
+requests
+transformers
+torch
+xgboost
+joblib
