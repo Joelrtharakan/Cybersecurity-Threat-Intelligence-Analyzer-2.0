@@ -30,7 +30,7 @@ A comprehensive big data analytics platform for analyzing and detecting maliciou
 The Cybersecurity Threat Intelligence Analyzer is an end-to-end solution for processing, analyzing, and visualizing large-scale cybersecurity threat data. It combines:
 
 - **Big Data Processing**: MongoDB for efficient storage and retrieval of millions of URLs
-- **Machine Learning**: Gradient Boosting Classifier for threat detection with 90%+ accuracy
+- **Machine Learning**: BERT (Bidirectional Encoder Representations from Transformers) model for threat detection with 90.8% accuracy
 - **Real-time Analytics**: MapReduce aggregations for threat pattern analysis
 - **Interactive Dashboards**: Flask-based web interfaces with Plotly visualizations
 - **Anomaly Detection**: Statistical analysis using z-scores for outlier identification
@@ -107,6 +107,18 @@ The Cybersecurity Threat Intelligence Analyzer is an end-to-end solution for pro
 │Visualization│    │  Dashboard   │
 └─────────────┘    └──────────────┘
 ```
+
+## 🤖 Machine Learning Model
+
+The system employs a BERT (Bidirectional Encoder Representations from Transformers) model for URL threat analysis:
+
+- **Model Architecture**: bert-base-uncased fine-tuned for URL classification
+- **Accuracy**: 90.8% test accuracy on malicious/benign URL classification
+- **Framework**: PyTorch with Hugging Face Transformers library
+- **Training Data**: 650,000+ URLs from Kaggle malicious URLs dataset
+- **Features**: Contextual understanding of URL patterns and suspicious keywords
+- **Fallback System**: Rule-based analysis for domains like Firebase to prevent false positives
+- **Optimization**: Early stopping and hyperparameter tuning for efficient training
 
 ## 🔧 Prerequisites
 
@@ -338,7 +350,8 @@ python src/visualize.py
 ```bash
 python src/ml_predict.py
 ```
-- Trains Gradient Boosting Classifier
+- Trains BERT (Bidirectional Encoder Representations from Transformers) model
+- Fine-tunes bert-base-uncased for URL classification
 - Generates confusion matrix
 - Saves optimized model
 
@@ -431,6 +444,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Dataset**: Kaggle community for the malicious URLs dataset
 - **Libraries**:
   - MongoDB for scalable data storage
+  - PyTorch and Hugging Face Transformers for BERT model implementation
   - scikit-learn for machine learning capabilities
   - Flask for web framework
   - Plotly for interactive visualizations
