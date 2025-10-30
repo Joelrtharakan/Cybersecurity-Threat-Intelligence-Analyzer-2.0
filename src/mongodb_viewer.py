@@ -725,15 +725,23 @@ def find_free_port(start_port=5002):
         port += 1
     raise OSError("No free ports found")
 
-def start_mongodb_viewer():
+def start_mongodb_viewer(port=None):
     """Start the MongoDB data viewer on a different port"""
     try:
-        # First, try to kill any existing process
-        import os
-        os.system("lsof -ti:5002 | xargs kill -9 2>/dev/null")
+        # Check for port argument
+        import sys
+        if port is None:
+            port = 5002  # default port
+            if len(sys.argv) > 1:
+                try:
+                    port = int(sys.argv[1])
+                except ValueError:
+                    print(f"Invalid port number: {sys.argv[1]}. Using default port 5002.")
         
-        # Find a free port
-        port = find_free_port()
+        # Kill any existing process on the target port
+        import os
+        os.system(f"lsof -ti:{port} | xargs kill -9 2>/dev/null")
+        
         print(f"\n=== MongoDB Data Viewer ===")
         print(f"Access the MongoDB viewer at: http://localhost:{port}")
         print("Press Ctrl+C to stop the server")

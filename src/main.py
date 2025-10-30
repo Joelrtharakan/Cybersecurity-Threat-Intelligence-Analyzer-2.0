@@ -40,27 +40,41 @@ def main():
     try:
         # Start the main dashboard
         dashboard_process = subprocess.Popen(
-            ["./venv/bin/python", "src/dashboard.py"],
+            ["./venv/bin/python", "src/dashboard.py", "5001"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            cwd=os.getcwd()  # Ensure correct working directory
         )
         
         # Start the MongoDB viewer
         mongodb_viewer_process = subprocess.Popen(
-            ["./venv/bin/python", "src/mongodb_viewer.py"],
+            ["./venv/bin/python", "src/mongodb_viewer.py", "5002"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            cwd=os.getcwd()  # Ensure correct working directory
         )
         
         print("\nStarting services...")
         print("Please wait a moment while both servers initialize...")
+        print("Note: Dashboard will show a loading page initially while data is prepared.")
         
         import time
-        time.sleep(3)  # Give servers time to start
+        time.sleep(3)  # Reduced wait time since servers start faster now
+        
+        # Check if processes are still alive
+        if dashboard_process.poll() is None:
+            print("✓ Dashboard process is running")
+        else:
+            print("✗ Dashboard process failed to start")
+            
+        if mongodb_viewer_process.poll() is None:
+            print("✓ MongoDB viewer process is running")
+        else:
+            print("✗ MongoDB viewer process failed to start")
         
         print("\n=== Services Started ===")
         print("1. Main Dashboard: http://localhost:5001")
@@ -74,7 +88,7 @@ def main():
             if dashboard_process.poll() is not None:
                 print("Dashboard server stopped unexpectedly. Restarting...")
                 dashboard_process = subprocess.Popen(
-                    ["./venv/bin/python", "src/dashboard.py"],
+                    ["./venv/bin/python", "src/dashboard.py", "5001"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     bufsize=1,
@@ -84,7 +98,7 @@ def main():
             if mongodb_viewer_process.poll() is not None:
                 print("MongoDB viewer stopped unexpectedly. Restarting...")
                 mongodb_viewer_process = subprocess.Popen(
-                    ["./venv/bin/python", "src/mongodb_viewer.py"],
+                    ["./venv/bin/python", "src/mongodb_viewer.py", "5002"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     bufsize=1,

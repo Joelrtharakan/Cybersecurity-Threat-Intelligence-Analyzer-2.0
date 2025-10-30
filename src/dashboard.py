@@ -49,14 +49,18 @@ def get_threat_summary():
         
         # Try to get data from database first, fallback to CSV
         try:
-            # Get data from MongoDB
+            # Get data from MongoDB - use pre-computed collections for speed
             total_urls = db['urls'].count_documents({})
             if total_urls == 0:
                 raise Exception("No data in database")
             
-            malicious = db['urls'].count_documents({"type": {"$ne": "benign"}})
+            # Use pre-computed threat scores collection
             threat_scores = list(db['threat_scores'].find())
             avg_threat = np.mean([score['avg_threat_score'] for score in threat_scores]) if threat_scores else 0
+            
+            # Use pre-computed counts
+            counts_by_type = list(db['counts_by_type'].find())
+            malicious = sum(doc['value'] for doc in counts_by_type if doc['_id'] != 'benign')
             
         except:
             # Fallback to CSV file
@@ -88,244 +92,6 @@ def get_threat_summary():
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
-def create_threat_intelligence_charts():
-    """Create comprehensive visualizations for threat intelligence data with optimized performance"""
-    try:
-        import pandas as pd
-        from urllib.parse import urlparse
-        import numpy as np
-        
-        # Try to get data from database first, fallback to CSV
-        data = []
-        try:
-            # Get data from MongoDB with smaller sample for performance
-            cursor = db['urls'].aggregate([
-                {'$sample': {'size': 10000}},  # Reduced from 50k to 10k for better performance
-                {'$project': {'url': 1, 'type': 1, '_id': 0}}
-            ])
-            data = list(cursor)
-            if not data:
-                raise Exception("No data in database")
-        except:
-            # Fallback to CSV file - use smaller sample for performance
-            print("Using CSV data for charts (optimized sampling)")
-            df = pd.read_csv('/Users/joeltharakan/Documents/Big Data Project/malicious_phish.csv')
-            # Sample smaller dataset for better performance
-            df_sample = df.sample(n=min(10000, len(df)), random_state=42)
-            data = df_sample.to_dict('records')
-        
-        if not data:
-            print("No data available for charts")
-            return None, None, None, None, None, None
-        
-        # Convert to DataFrame for easier analysis
-        df = pd.DataFrame(data)
-        
-        # Pre-compute aggregations to avoid repeated processing
-        threat_counts = df['type'].value_counts()
-        malicious_df = df[df['type'] != 'benign']
-        malicious_domains = malicious_df['url'].apply(lambda x: urlparse(str(x)).netloc).value_counts().head(10)
-        
-        charts = {}
-        
-        # 1. Threat Type Distribution Pie Chart
-        if not threat_counts.empty:
-            colors = ['#28a745', '#dc3545', '#ffc107', '#6c757d', '#007bff']
-            
-            # Calculate percentages for threat types
-            total = threat_counts.sum()
-            percentages = (threat_counts / total * 100).round(1)
-            
-            # Create horizontal bar chart
-            fig_threats = go.Figure()
-            
-            fig_threats.add_trace(go.Bar(
-                x=threat_counts.values,
-                y=threat_counts.index,
-                orientation='h',
-                marker_color=colors[:len(threat_counts)],
-                text=[f'{val} ({pct}%)' for val, pct in zip(threat_counts.values, percentages)],
-                textposition='outside',
-                textfont=dict(size=12),
-                hovertemplate='<b>%{y}</b><br>Count: %{x}<br>Percentage: %{text}<extra></extra>'
-            ))
-            
-            fig_threats.update_layout(
-                title={
-                    'text': 'Threat Type Distribution',
-                    'y': 0.95,
-                    'x': 0.5,
-                    'xanchor': 'center',
-                    'yanchor': 'top',
-                    'font': {'size': 20}
-                },
-                xaxis_title='Number of URLs',
-                yaxis_title='Threat Type',
-                yaxis={'categoryorder': 'total ascending'},  # Sort bars by value
-                height=500,
-                margin=dict(t=80, b=60, l=140, r=40),  # Adjusted margins
-                paper_bgcolor='white',
-                plot_bgcolor='white',
-                bargap=0.3,  # Add space between bars
-                showlegend=False,
-                autosize=True
-            )
-            charts['threat_dist'] = fig_threats.to_html(full_html=False)
-        
-        # 2. URL Length Distribution Histogram (simplified)
-        if not df.empty:
-            url_lengths = df['url'].str.len()
-            fig_url_len = go.Figure()
-            
-            # Add box plots for each threat type
-            for threat_type, color in zip(threat_counts.index, colors):
-                lengths = df[df['type'] == threat_type]['url'].str.len()
-                fig_url_len.add_trace(go.Box(
-                    y=lengths,
-                    name=threat_type,
-                    marker_color=color,
-                    boxpoints='outliers',  # show outliers
-                    jitter=0.3,  # add some randomness to point positions
-                    pointpos=-1.8,  # offset points
-                    marker=dict(
-                        size=4,
-                        opacity=0.5
-                    ),
-                    boxmean=True,  # show mean line
-                    line=dict(width=2)  # box line width
-                ))
-            
-            # Update layout
-            fig_url_len.update_layout(
-                title=dict(
-                    text='URL Length Distribution by Threat Type',
-                    x=0.5,
-                    y=0.95
-                ),
-                yaxis_title='URL Length (characters)',
-                height=500,
-                template='plotly_white',
-                boxmode='group',
-                margin=dict(l=50, r=50, t=80, b=50),
-                paper_bgcolor='white',
-                plot_bgcolor='white',
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=-0.2,
-                    xanchor="center",
-                    x=0.5
-                )
-            )
-            charts['url_length'] = fig_url_len.to_html(full_html=False)
-        
-        # 3. Top Malicious Domains
-        if not malicious_domains.empty:
-            fig_domains = go.Figure(data=[go.Bar(
-                x=malicious_domains.values,
-                y=malicious_domains.index,
-                orientation='h',
-                marker_color='#dc3545',
-                text=malicious_domains.values,
-                textposition='auto',
-                hovertemplate='<b>%{y}</b><br>%{x} malicious URLs<extra></extra>'
-            )])
-            fig_domains.update_layout(
-                title='Top 10 Malicious Domains',
-                xaxis_title='Number of URLs',
-                yaxis_title='Domain',
-                height=400
-            )
-            charts['malicious_domains'] = fig_domains.to_html(full_html=False)
-        
-        # 4. TLD Distribution (simplified)
-        tld_counts = df['url'].apply(lambda x: urlparse(str(x)).netloc.split('.')[-1] if '.' in urlparse(str(x)).netloc else 'unknown').value_counts().head(10)
-        if not tld_counts.empty:
-            fig_tld = go.Figure(data=[go.Bar(
-                x=tld_counts.index,
-                y=tld_counts.values,
-                marker_color='#6c757d',
-                text=tld_counts.values,
-                textposition='auto',
-                hovertemplate='<b>%{x}</b><br>%{y} URLs<extra></extra>'
-            )])
-            fig_tld.update_layout(
-                title='Top 10 TLD Distribution',
-                xaxis_title='TLD',
-                yaxis_title='Number of URLs',
-                height=400
-            )
-            charts['tld_dist'] = fig_tld.to_html(full_html=False)
-        
-        # 5. Domain Length vs Threat Type (simplified)
-        if not df.empty:
-            domain_lengths = df['url'].apply(lambda x: len(urlparse(str(x)).netloc))
-            fig_domain_len = go.Figure()
-            for threat_type in df['type'].unique():
-                type_data = domain_lengths[df['type'] == threat_type]
-                fig_domain_len.add_trace(go.Box(
-                    y=type_data,
-                    name=threat_type,
-                    boxpoints=False,  # Remove outliers for performance
-                    marker_color=colors[df['type'].unique().tolist().index(threat_type) % len(colors)]
-                ))
-            fig_domain_len.update_layout(
-                title='Domain Length Distribution by Threat Type',
-                yaxis_title='Domain Length (characters)',
-                height=400
-            )
-            charts['domain_length'] = fig_domain_len.to_html(full_html=False)
-        
-        # 6. Simplified Risk Score Distribution
-        def calculate_simple_risk_score(url):
-            score = 0
-            url_str = str(url).lower()
-            
-            # Simple scoring for performance
-            if len(url_str) > 75:
-                score += 1
-            if any(word in url_str for word in ['login', 'bank', 'secure', 'password']):
-                score += 1
-            if any(tld in url_str for tld in ['ru', 'cn', 'tk']):
-                score += 2
-            
-            return min(score, 5)  # Cap at 5
-        
-        df['risk_score'] = df['url'].apply(calculate_simple_risk_score)
-        
-        risk_by_type = df.groupby('type')['risk_score'].mean()
-        if not risk_by_type.empty:
-            fig_risk = go.Figure(data=[go.Bar(
-                x=risk_by_type.index,
-                y=risk_by_type.values,
-                marker_color=['#28a745' if x == 'benign' else '#dc3545' for x in risk_by_type.index],
-                text=risk_by_type.round(2),
-                textposition='auto'
-            )])
-            fig_risk.update_layout(
-                title='Average Risk Score by Threat Type',
-                xaxis_title='Threat Type',
-                yaxis_title='Average Risk Score',
-                height=400
-            )
-            charts['risk_scores'] = fig_risk.to_html(full_html=False)
-        
-        return (
-            charts.get('threat_dist'),
-            charts.get('url_length'), 
-            charts.get('malicious_domains'),
-            charts.get('tld_dist'),
-            charts.get('domain_length'),
-            charts.get('risk_scores')
-        )
-        
-    except Exception as e:
-        print(f"Error creating threat intelligence charts: {e}")
-        import traceback
-        traceback.print_exc()
-        return None, None, None, None, None, None
-
 # Global cache for charts and data
 chart_cache = {
     'charts': None,
@@ -353,19 +119,10 @@ def update_cache():
     except Exception as e:
         print(f"Error updating cache: {e}")
 
-# Start background cache update thread
-def cache_updater():
-    """Background thread to update cache periodically"""
-    while True:
-        update_cache()
-        time.sleep(chart_cache['cache_duration'])
-
-# Start the cache updater thread
-cache_thread = threading.Thread(target=cache_updater, daemon=True)
-cache_thread.start()
-
-# Initialize cache on startup
-update_cache()
+# Remove the immediate cache initialization and background thread
+# cache_thread = threading.Thread(target=cache_updater, daemon=True)
+# cache_thread.start()
+# update_cache()
 
 def calculate_entropy(text):
     """Calculate entropy of text string"""
@@ -641,17 +398,108 @@ def create_threat_intelligence_charts():
         traceback.print_exc()
         return None, None, None, None, None, None
 
+@app.route('/health')
+def health_check():
+    """Simple health check endpoint that responds immediately"""
+    return jsonify({"status": "healthy", "service": "dashboard"})
+
 @app.route('/')
 def dashboard():
-    """Main dashboard page"""
     try:
         # Get cached data
         cached_data = get_cached_data()
         
         if cached_data is None:
-            # Cache miss - update cache synchronously for first load
-            update_cache()
-            cached_data = get_cached_data()
+            # Start cache update in background thread
+            def background_cache_update():
+                print("Initializing cache in background...")
+                update_cache()
+                print("Cache initialization complete")
+            
+            cache_thread = threading.Thread(target=background_cache_update, daemon=True)
+            cache_thread.start()
+            
+            # Return loading page immediately
+            return render_template_string("""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Loading Dashboard - Cybersecurity Threat Intelligence</title>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+                <style>
+                    :root {
+                        --primary: """ + COLORS['primary'] + """;
+                        --secondary: """ + COLORS['secondary'] + """;
+                        --accent: """ + COLORS['accent'] + """;
+                        --background: """ + COLORS['background'] + """;
+                    }
+                    body {
+                        font-family: 'Inter', sans-serif;
+                        background-color: var(--background);
+                        margin: 0;
+                        padding: 0;
+                        color: var(--primary);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                    }
+                    .loading-container {
+                        text-align: center;
+                        background: white;
+                        padding: 40px;
+                        border-radius: 16px;
+                        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+                        max-width: 500px;
+                    }
+                    .spinner {
+                        width: 50px;
+                        height: 50px;
+                        border: 4px solid #f3f3f3;
+                        border-top: 4px solid var(--accent);
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin: 20px auto;
+                    }
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    h1 {
+                        color: var(--primary);
+                        margin-bottom: 10px;
+                        font-size: 1.8em;
+                    }
+                    p {
+                        color: var(--secondary);
+                        margin: 15px 0;
+                        font-size: 1.1em;
+                    }
+                    .progress-text {
+                        color: #666;
+                        font-size: 0.9em;
+                        margin-top: 20px;
+                    }
+                </style>
+                <script>
+                    // Auto-refresh after 3 seconds to check if cache is ready
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 3000);
+                </script>
+            </head>
+            <body>
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <h1>Loading Dashboard</h1>
+                    <p>Initializing threat intelligence data...</p>
+                    <p class="progress-text">This will only take a few seconds</p>
+                </div>
+            </body>
+            </html>
+            """)
         
         if cached_data:
             threat_summary = cached_data['threat_summary']
@@ -1569,12 +1417,19 @@ def find_free_port(start_port=5001):
 
 if __name__ == '__main__':
     try:
-        # First, try to kill any existing process on port 5001
-        import os
-        os.system("lsof -ti:5001 | xargs kill -9 2>/dev/null")
+        # Check for port argument
+        import sys
+        port = 5001  # default port
+        if len(sys.argv) > 1:
+            try:
+                port = int(sys.argv[1])
+            except ValueError:
+                print(f"Invalid port number: {sys.argv[1]}. Using default port 5001.")
         
-        # Find a free port
-        port = find_free_port()
+        # Kill any existing process on the target port
+        import os
+        os.system(f"lsof -ti:{port} | xargs kill -9 2>/dev/null")
+        
         print(f"Starting dashboard on port {port}")
         app.run(debug=False, host='0.0.0.0', port=port, use_reloader=False)
     except Exception as e:
