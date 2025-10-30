@@ -6,6 +6,8 @@ Outputs:
  - mal_domains
  - malicious_tld_counts
  - url_length_by_type
+ MongoDB Aggregation Pipeline
+
 """
 
 from pymongo import MongoClient
