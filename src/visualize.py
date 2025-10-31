@@ -73,7 +73,7 @@ def plot_tld_distribution(n=20):
 
 def plot_threat_scores():
     cur = db['threat_scores'].find()
-    rows = [(d['_id'], d['avg_threat_score']) for d in cur]
+    rows = [(d['_id'], d['value']['avg']) for d in cur]
     if not rows:
         print("No data in threat_scores.")
         return
