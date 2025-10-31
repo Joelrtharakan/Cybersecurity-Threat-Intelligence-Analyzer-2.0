@@ -1,5 +1,9 @@
 """
 ml_predict.py
+Excellent for classification tasks
+Handles mixed data types well
+Less prone to overfitting than other models
+Good performance on tabular data
 Trains an optimized ML model with reduced training time and improved accuracy.
 """
 

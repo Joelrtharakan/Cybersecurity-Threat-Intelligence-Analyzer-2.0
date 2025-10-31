@@ -1,3 +1,4 @@
+./venv/bin/python src/main.py
 # Cybersecurity Threat Intelligence Analyzer 🛡️
 
 A comprehensive big data analytics platform for analyzing and detecting malicious URLs using MongoDB, Machine Learning, and interactive visualizations. This system processes large-scale cybersecurity threat data to identify phishing, malware, defacement attacks, and other malicious activities.
